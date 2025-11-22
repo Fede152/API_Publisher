@@ -51,3 +51,64 @@ class PublisherHandler(tornado.web.RequestHandler):
         publishers_collection.delete_one({'_id': ObjectId(publisher_id)})
         self.write({"status": "deleted"})
 
+
+# Handler per i libri
+class BooksHandler(tornado.web.RequestHandler):
+    def get(self, publisher_id=None, book_id=None):
+        query = {}
+        if publisher_id:
+            query['publisher_id'] = ObjectId(publisher_id)
+        if book_id:
+            query['_id'] = ObjectId(book_id)
+        title = self.get_argument('title', None)
+        author = self.get_argument('author', None)
+        genre = self.get_argument('genre', None)
+        if title:
+            query['title'] = title
+        if author:
+            query['author'] = author
+        if genre:
+            query['genre'] = genre
+
+        cursor = books_collection.find(query)
+        books = []
+        for doc in cursor:
+            doc['_id'] = str(doc['_id'])
+            doc['publisher_id'] = str(doc['publisher_id'])
+            books.append(doc)
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps(books))
+
+    def post(self, publisher_id=None):
+        data = json.loads(self.request.body)
+        if publisher_id:
+            data['publisher_id'] = ObjectId(publisher_id)
+        result = books_collection.insert_one(data)
+        self.set_header("Content-Type", "application/json")
+        self.write({"inserted_id": str(result.inserted_id)})
+
+    def put(self, book_id):
+        data = json.loads(self.request.body)
+        books_collection.update_one({'_id': ObjectId(book_id)}, {'$set': data})
+        self.write({"status": "updated"})
+
+    def delete(self, book_id):
+        books_collection.delete_one({'_id': ObjectId(book_id)})
+        self.write({"status": "deleted"})
+
+
+# Rotte dell'app Tornado
+app = tornado.web.Application([
+    (r"/", MainHandler),
+    (r"/publishers", PublisherHandler),
+    (r"/publishers/([0-9a-fA-F]{24})", PublisherHandler),
+    (r"/publishers/([0-9a-fA-F]{24})/books", BooksHandler),
+    (r"/publishers/([0-9a-fA-F]{24})/books/([0-9a-fA-F]{24})", BooksHandler),
+    (r"/books", BooksHandler),
+    (r"/books/([0-9a-fA-F]{24})", BooksHandler),
+])
+
+if __name__ == "__main__":
+    app.listen(8888)
+    print("Server avviato su http://localhost:8888")
+    tornado.ioloop.IOLoop.current().start()
